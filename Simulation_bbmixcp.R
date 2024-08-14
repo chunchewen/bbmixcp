@@ -2002,3 +2002,53 @@ ggplot(dplotc3,aes(x=grid,y=mmu2,col=gp,shape=gp))+
            color="black",size=6)
 
 
+
+#------------------------------------------------------------------------------#
+# Triangle plot #
+#---------------#
+library(ggtern)
+
+
+denom<-P1s+P2s+P3s
+p1<-apply(P1s/denom,2,mean)   # Class 1 n=106 with posterior prob > .95
+p2<-apply(P2s/denom,2,mean)   # Class 2 n=69 wiht posterior prob > .95
+p3<-apply(P3s/denom,2,mean)   # Class 3 n=41 with posterior prob > .95
+
+
+
+dtriax  <- data.frame(
+  Class.1 =p1,
+  Class.2 =p2,
+  Class.3 =p3
+)
+
+
+dtriax2  <- data.frame(
+  Class.1 =p1,
+  Class.2 =p2,
+  Class.3 =p3,
+  colgp = as.factor(apply(dtriax,1,which.max))
+)
+
+dtriax2$colgp<-factor(dtriax2$colgp,labels=c("Class 1", "Class 2", "Class 3"))
+
+
+
+ggtern(data=dtriax2,aes(Class.3,Class.1,Class.2,col=colgp,fill=colgp,shape=colgp)) + 
+  geom_mask() +
+  geom_point(size=3.5) + 
+  theme_rgbw() +
+  theme_showarrows() +
+  theme_clockwise() +
+  tern_limits(labels=c(0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9,1.0),
+              breaks=seq(0.1,1,by=0.1))+
+  guides(color = guide_legend(title="Assigned Class",
+                              override.aes = list(shape=c(16,17,15)),
+                              reverse = F), fill="none",shape="none")+
+  Tlab("Class 1") + Llab("Class 3") + Rlab("Class 2") + 
+  Tarrowlab("Class 1") + Larrowlab("Class 3") + Rarrowlab("Class 2")+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.title=element_text(size=20),
+        legend.position = c(0.15,0.80),legend.text=element_text(size=20),
+        axis.text=element_text(size=20),
+        axis.title=element_text(size=16))
