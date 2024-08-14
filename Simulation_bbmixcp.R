@@ -1757,6 +1757,554 @@ ggplot(dplotc3,aes(x=grid,y=mmu2,col=gp,shape=gp))+
   annotate(geom="text", x=10.6, y=0, label="95%CrI:[7.32,8.27]",
            color="black",size=6)
 
+#------------------------------------------------------------------------------#
+# Selected subject trajectories #
+#-------------------------------#
+
+#----------#
+# Observed #
+#----------#
+dat<-data.frame(y=y,t=t,tx=tx,C=rep(true.c,nis),id=id)
+
+num=12
+grid<-seq(-4,7,length.out=num)
+
+trt<-tx[!duplicated(id)]
+
+tp<-rep(grid,n)
+nisp<-rep(num,n)
+txp<-rep(trt,nisp)
+
+idp<-rep(1:n,eac=num)
+
+
+#---------#
+# Class 1 #
+#---------#
+# ID 14 - Placebo
+idsubjc10<-14
+# ID 128 - Treatment
+idsubjc1<-128
+
+
+
+#---------#
+# Class 2 #
+#---------#
+# ID: 132 - Placebo
+idsubjc20<-132
+# ID: 104 - Treatment
+idsubjc2<-104
+
+
+#---------#
+# Class 3 #
+#---------#
+# ID: 62 - Placebo
+idsubjc30<-62
+# ID: 85 - Treatment
+idsubjc3<-85
+
+
+#--------#
+# Fitted #
+#--------#
+YSUB_c10<-array(0,dim=c(lastit,num))   # Subject Trajectories from class 1 - Placebo     
+YSUB_c20<-array(0,dim=c(lastit,num))   # Subject Trajectories from class 2 - Placebo
+YSUB_c30<-array(0,dim=c(lastit,num))   # Subject Trajectories from class 3 - Placebo
+
+YSUB_c1<-array(0,dim=c(lastit,num))   # Subject Trajectories from class 1 - Treatment  
+YSUB_c2<-array(0,dim=c(lastit,num))   # Subject Trajectories from class 2 - Treatment
+YSUB_c3<-array(0,dim=c(lastit,num))   # Subject Trajectories from class 3 - Treatment
+
+
+for (j in 1:lastit){
+  beta1<-Beta1[j,]
+  beta2<-Beta2[j,]
+  beta3<-Beta3[j,]
+  kappa11<-Kappa[j,1]
+  kappa12<-Kappa[j,2]
+  kappa21<-Kappa[j,3]
+  kappa22<-Kappa[j,4]
+  kappa31<-Kappa[j,5]
+  kappa32<-Kappa[j,6]
+  
+  b1<-B1s[j,]
+  b2<-B2s[j,]
+  b3<-B3s[j,]
+  
+  spg11<-(tp-kappa11)*(tp>kappa11)*(txp==0)
+  spg12<-(tp-kappa12)*(tp>kappa12)*(txp==1)
+  spg21<-(tp-kappa21)*(tp>kappa21)*(txp==0)
+  spg22<-(tp-kappa22)*(tp>kappa22)*(txp==1)
+  spg31<-(tp-kappa31)*(tp>kappa31)*(txp==0)
+  spg32<-(tp-kappa32)*(tp>kappa32)*(txp==1)
+  
+  spg1<-spg11+spg12
+  spg2<-spg21+spg22
+  spg3<-spg31+spg32
+  
+  X1<-cbind(1,tp,txp,tp*txp,spg11,spg12)
+  X2<-cbind(1,tp,txp,tp*txp,spg21,spg22)
+  X3<-cbind(1,tp,txp,tp*txp,spg31,spg32)
+  
+  #----------------------------------------#
+  # Subject trajectories class 1 - Placebo #
+  #----------------------------------------#
+  c10s<-rep(Cs[j,idsubjc10],num)
+  
+  if (trt[idsubjc10]==0) {
+    tmpc1=spg11
+  } else {tmpc1=spg12}
+  
+  if (trt[idsubjc10]==0) {
+    tmpc2=spg21
+  } else {tmpc2=spg22}
+  
+  if (trt[idsubjc10]==0) {
+    tmpc3=spg31
+  } else {tmpc3=spg32}
+  
+  etac1id<-X1[idp==idsubjc10,]%*%beta1+rep(b1[idsubjc10],num)+rep(b2[idsubjc10],num)*grid+rep(b3[idsubjc10],num)*tmpc1[idp==idsubjc10]
+  muc1id<-1/(1+exp(-etac1id))*7
+  etac2id<-X2[idp==idsubjc10,]%*%beta2+rep(b1[idsubjc10],num)+rep(b2[idsubjc10],num)*grid+rep(b3[idsubjc10],num)*tmpc2[idp==idsubjc10]
+  muc2id<-1/(1+exp(-etac2id))*7
+  etac3id<-X3[idp==idsubjc10,]%*%beta3+rep(b1[idsubjc10],num)+rep(b2[idsubjc10],num)*grid+rep(b3[idsubjc10],num)*tmpc3[idp==idsubjc10]
+  muc3id<-1/(1+exp(-etac3id))*7
+  
+  YSUB_c10[j,]<-ifelse(c10s==rep(1,num),muc1id,ifelse(c10s==rep(2,num),muc2id,muc3id))
+  
+  #------------------------------------------#
+  # Subject trajectories class 1 - Treatment #
+  #------------------------------------------#
+  
+  c1s<-rep(Cs[j,idsubjc1],num)
+  
+  if (trt[idsubjc1]==0) {
+    tmpc1=spg11
+  } else {tmpc1=spg12}
+  
+  if (trt[idsubjc1]==0) {
+    tmpc2=spg21
+  } else {tmpc2=spg22}
+  
+  if (trt[idsubjc1]==0) {
+    tmpc3=spg31
+  } else {tmpc3=spg32}
+  
+  etac1id<-X1[idp==idsubjc1,]%*%beta1+rep(b1[idsubjc1],num)+rep(b2[idsubjc1],num)*grid+rep(b3[idsubjc1],num)*tmpc1[idp==idsubjc1]
+  muc1id<-1/(1+exp(-etac1id))*7
+  etac2id<-X2[idp==idsubjc1,]%*%beta2+rep(b1[idsubjc1],num)+rep(b2[idsubjc1],num)*grid+rep(b3[idsubjc1],num)*tmpc2[idp==idsubjc1]
+  muc2id<-1/(1+exp(-etac2id))*7
+  etac3id<-X3[idp==idsubjc1,]%*%beta3+rep(b1[idsubjc1],num)+rep(b2[idsubjc1],num)*grid+rep(b3[idsubjc1],num)*tmpc3[idp==idsubjc1]
+  muc3id<-1/(1+exp(-etac3id))*7
+  
+  YSUB_c1[j,]<-ifelse(c1s==rep(1,num),muc1id,ifelse(c1s==rep(2,num),muc2id,muc3id))
+  
+  
+  #----------------------------------------#
+  # Subject trajectories class 2 - Placebo #
+  #----------------------------------------#
+  c20s<-rep(Cs[j,idsubjc20],num)  
+  
+  if (trt[idsubjc20]==0) {
+    tmpc1=spg11
+  } else {tmpc1=spg12}
+  
+  if (trt[idsubjc20]==0) {
+    tmpc2=spg21
+  } else {tmpc2=spg22}
+  
+  if (trt[idsubjc20]==0) {
+    tmpc3=spg31
+  } else {tmpc3=spg32}
+  
+  etac1id<-X1[idp==idsubjc20,]%*%beta1+rep(b1[idsubjc20],num)+rep(b2[idsubjc20],num)*grid+rep(b3[idsubjc20],num)*tmpc1[idp==idsubjc20]
+  muc1id<-1/(1+exp(-etac1id))*7
+  etac2id<-X2[idp==idsubjc20,]%*%beta2+rep(b1[idsubjc20],num)+rep(b2[idsubjc20],num)*grid+rep(b3[idsubjc20],num)*tmpc2[idp==idsubjc20]
+  muc2id<-1/(1+exp(-etac2id))*7
+  etac3id<-X3[idp==idsubjc20,]%*%beta3+rep(b1[idsubjc20],num)+rep(b2[idsubjc20],num)*grid+rep(b3[idsubjc20],num)*tmpc3[idp==idsubjc20]
+  muc3id<-1/(1+exp(-etac3id))*7
+  
+  YSUB_c20[j,]<-ifelse(c20s==rep(1,num),muc1id,ifelse(c20s==rep(2,num),muc2id,muc3id))
+  
+  
+  #------------------------------------------#
+  # Subject trajectories class 2 - Treatment #
+  #------------------------------------------#
+  c2s<-rep(Cs[j,idsubjc2],num)  
+  
+  if (trt[idsubjc2]==0) {
+    tmpc1=spg11
+  } else {tmpc1=spg12}
+  
+  if (trt[idsubjc2]==0) {
+    tmpc2=spg21
+  } else {tmpc2=spg22}
+  
+  if (trt[idsubjc2]==0) {
+    tmpc3=spg31
+  } else {tmpc3=spg32}
+  
+  etac1id<-X1[idp==idsubjc2,]%*%beta1+rep(b1[idsubjc2],num)+rep(b2[idsubjc2],num)*grid+rep(b3[idsubjc2],num)*tmpc1[idp==idsubjc2]
+  muc1id<-1/(1+exp(-etac1id))*7
+  etac2id<-X2[idp==idsubjc2,]%*%beta2+rep(b1[idsubjc2],num)+rep(b2[idsubjc2],num)*grid+rep(b3[idsubjc2],num)*tmpc2[idp==idsubjc2]
+  muc2id<-1/(1+exp(-etac2id))*7
+  etac3id<-X3[idp==idsubjc2,]%*%beta3+rep(b1[idsubjc2],num)+rep(b2[idsubjc2],num)*grid+rep(b3[idsubjc2],num)*tmpc3[idp==idsubjc2]
+  muc3id<-1/(1+exp(-etac3id))*7
+  
+  YSUB_c2[j,]<-ifelse(c2s==rep(1,num),muc1id,ifelse(c2s==rep(2,num),muc2id,muc3id))
+  
+  
+  #----------------------------------------#
+  # Subject trajectories class 3 - Placebo #
+  #----------------------------------------#
+  c30s<-rep(Cs[j,idsubjc30],num)  
+  
+  if (trt[idsubjc30]==0) {
+    tmpc1=spg11
+  } else {tmpc1=spg12}
+  
+  if (trt[idsubjc30]==0) {
+    tmpc2=spg21
+  } else {tmpc2=spg22}
+  
+  if (trt[idsubjc30]==0) {
+    tmpc3=spg31
+  } else {tmpc3=spg32}
+  
+  etac1id<-X1[idp==idsubjc30,]%*%beta1+rep(b1[idsubjc30],num)+rep(b2[idsubjc30],num)*grid+rep(b3[idsubjc30],num)*tmpc1[idp==idsubjc30]
+  muc1id<-1/(1+exp(-etac1id))*7
+  etac2id<-X2[idp==idsubjc30,]%*%beta2+rep(b1[idsubjc30],num)+rep(b2[idsubjc30],num)*grid+rep(b3[idsubjc30],num)*tmpc2[idp==idsubjc30]
+  muc2id<-1/(1+exp(-etac2id))*7
+  etac3id<-X3[idp==idsubjc30,]%*%beta3+rep(b1[idsubjc30],num)+rep(b2[idsubjc30],num)*grid+rep(b3[idsubjc30],num)*tmpc3[idp==idsubjc30]
+  muc3id<-1/(1+exp(-etac3id))*7
+  
+  YSUB_c30[j,]<-ifelse(c30s==rep(1,num),muc1id,ifelse(c30s==rep(2,num),muc2id,muc3id))
+  
+  
+  #------------------------------------------#
+  # Subject trajectories class 3 - Treatment #
+  #------------------------------------------#
+  c3s<-rep(Cs[j,idsubjc3],num)  
+  
+  if (trt[idsubjc3]==0) {
+    tmpc1=spg11
+  } else {tmpc1=spg12}
+  
+  if (trt[idsubjc3]==0) {
+    tmpc2=spg21
+  } else {tmpc2=spg22}
+  
+  if (trt[idsubjc3]==0) {
+    tmpc3=spg31
+  } else {tmpc3=spg32}
+  
+  etac1id<-X1[idp==idsubjc3,]%*%beta1+rep(b1[idsubjc3],num)+rep(b2[idsubjc3],num)*grid+rep(b3[idsubjc3],num)*tmpc1[idp==idsubjc3]
+  muc1id<-1/(1+exp(-etac1id))*7
+  etac2id<-X2[idp==idsubjc3,]%*%beta2+rep(b1[idsubjc3],num)+rep(b2[idsubjc3],num)*grid+rep(b3[idsubjc3],num)*tmpc2[idp==idsubjc3]
+  muc2id<-1/(1+exp(-etac2id))*7
+  etac3id<-X3[idp==idsubjc3,]%*%beta3+rep(b1[idsubjc3],num)+rep(b2[idsubjc3],num)*grid+rep(b3[idsubjc3],num)*tmpc3[idp==idsubjc3]
+  muc3id<-1/(1+exp(-etac3id))*7
+  
+  YSUB_c3[j,]<-ifelse(c3s==rep(1,num),muc1id,ifelse(c3s==rep(2,num),muc2id,muc3id))
+  
+  if (j %% 1000 ==0) print(j)
+}
+
+
+ysub_c10<-colMeans(YSUB_c10)
+ysub_c20<-colMeans(YSUB_c20)
+ysub_c30<-colMeans(YSUB_c30)
+
+ysub_c1<-colMeans(YSUB_c1)
+ysub_c2<-colMeans(YSUB_c2)
+ysub_c3<-colMeans(YSUB_c3)
+
+
+ysub_c10cl<-apply(YSUB_c10,2,quantile,c(.025,.95))
+ysub_c20cl<-apply(YSUB_c20,2,quantile,c(.025,.95))
+ysub_c30cl<-apply(YSUB_c30,2,quantile,c(.025,.95))
+
+ysub_c1cl<-apply(YSUB_c1,2,quantile,c(.025,.95))
+ysub_c2cl<-apply(YSUB_c2,2,quantile,c(.025,.95))
+ysub_c3cl<-apply(YSUB_c3,2,quantile,c(.025,.95))
+
+#--------------------------------------------#
+# Subject ID 14 from class 1: placebo group #
+#--------------------------------------------#
+
+ysubjc10obs<-dat[dat$id==idsubjc10,]
+numc10<-nrow(ysubjc10obs)
+
+
+dsubjc10<-data.frame(y=ysub_c10,
+                     t=grid,
+                     lb=ysub_c10cl[1,],
+                     ub=ysub_c10cl[2,])
+
+dplotc10subj<-data.frame(y=c(ysubjc10obs$y,dsubjc10$y),
+                         t=c(ysubjc10obs$t,dsubjc10$t)+5,
+                         lb=c(rep(NA,numc10),dsubjc10$lb),
+                         ub=c(rep(NA,numc10),dsubjc10$ub),
+                         gp=c(rep("Observed data",numc10),rep("Posterior trend",num)))
+
+
+ggplot(dplotc10subj,aes(x=t,y=y,col=gp,shape=gp))+
+  geom_line(linetype=c(rep("blank",numc10),rep("dotted",num)),size=1)+
+  geom_point(size=5.5)+
+  geom_ribbon(aes(ymin = lb, ymax = ub,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,alpha=0.3,show.legend = F)+
+  scale_x_continuous(breaks = 1:12,limits=c(1,12))+
+  scale_y_continuous(breaks = 0:7,limits=c(0,7))+
+  scale_color_manual(breaks = c("Observed data","Posterior trend","95% Credible Interval"), 
+                     values = c("#F8766D","darkred","grey36"))+
+  scale_shape_manual(breaks = c("Observed data","Posterior trend"), 
+                     values = c(17,7))+
+  scale_fill_manual(breaks = c("95% Credible Interval"), 
+                    values = c("grey36"))+
+  xlab("Week")+ylab("Abstinent days in past week")+
+  guides(color = guide_legend(title=expression(paste("Subject trajectory - ID:14"," (",hat(pi)[1],",",hat(pi)[2],",",hat(pi)[3],")=(0.98,0.02,0.00)")),
+                              override.aes = list(
+                                linetype = c(NA,1,1),
+                                shape=c(17,7,NA)),
+                              reverse = F), fill="none",shape="none",linetype="none")+
+  theme_gray(base_size = 14)+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.position = c(0.30,0.75),legend.text=element_text(size=12),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=16))
+
+
+#-----------------------------------------------#
+# Subject ID 128 from class 1: treatmeent group #
+#-----------------------------------------------#
+
+ysubjc1obs<-dat[dat$id==idsubjc1,]
+numc1<-nrow(ysubjc1obs)
+
+
+dsubjc1<-data.frame(y=ysub_c1,
+                    t=grid,
+                    lb=ysub_c1cl[1,],
+                    ub=ysub_c1cl[2,])
+
+dplotc1subj<-data.frame(y=c(ysubjc1obs$y,dsubjc1$y),
+                        t=c(ysubjc1obs$t,dsubjc1$t)+5,
+                        lb=c(rep(NA,numc1),dsubjc1$lb),
+                        ub=c(rep(NA,numc1),dsubjc1$ub),
+                        gp=c(rep("Observed data",numc1),rep("Posterior trend",num)))
+
+
+ggplot(dplotc1subj,aes(x=t,y=y,col=gp,shape=gp))+
+  geom_line(linetype=c(rep("blank",numc1),rep("dotted",num)),size=1)+
+  geom_point(size=5.5)+
+  geom_ribbon(aes(ymin = lb, ymax = ub,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,alpha=0.3,show.legend = F)+
+  scale_x_continuous(breaks = 1:12,limits=c(1,12))+
+  scale_y_continuous(breaks = 0:7,limits=c(0,7))+
+  scale_color_manual(breaks = c("Observed data","Posterior trend","95% Credible Interval"), 
+                     values = c("#F8766D","darkred","grey36"))+
+  scale_shape_manual(breaks = c("Observed data","Posterior trend"), 
+                     values = c(17,7))+
+  scale_fill_manual(breaks = c("95% Credible Interval"), 
+                    values = c("grey36"))+
+  xlab("Week")+ylab("Abstinent days in past week")+
+  guides(color = guide_legend(title=expression(paste("Subject trajectory - ID:128"," (",hat(pi)[1],",",hat(pi)[2],",",hat(pi)[3],")=(1.00,0.00,0.00)")),
+                              override.aes = list(
+                                linetype = c(NA,1,1),
+                                shape=c(17,7,NA)),
+                              reverse = F), fill="none",shape="none",linetype="none")+
+  theme_gray(base_size = 14)+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.position = c(0.30,0.75),legend.text=element_text(size=12),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=16))
+
+
+#---------------------------------------------#
+# Subject ID XX from class 2: placebo group #
+#-------------------------------------------#
+
+
+ysubjc20obs<-dat[dat$id==idsubjc20,]
+numc20<-nrow(ysubjc20obs)
+
+
+dsubjc20<-data.frame(y=ysub_c20,
+                     t=grid,
+                     lb=ysub_c20cl[1,],
+                     ub=ysub_c20cl[2,])
+
+dplotc20subj<-data.frame(y=c(ysubjc20obs$y,dsubjc20$y),
+                         t=c(ysubjc20obs$t,dsubjc20$t)+5,
+                         lb=c(rep(NA,numc20),dsubjc20$lb),
+                         ub=c(rep(NA,numc20),dsubjc20$ub),
+                         gp=c(rep("Observed data",numc20),rep("Posterior trend",num)))
+
+
+ggplot(dplotc20subj,aes(x=t,y=y,col=gp,shape=gp))+
+  geom_line(linetype=c(rep("blank",numc20),rep("dotted",num)),size=1)+
+  geom_point(size=5.5)+
+  geom_ribbon(aes(ymin = lb, ymax = ub,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,alpha=0.3,show.legend = F)+
+  scale_x_continuous(breaks = 1:12,limits=c(1,12))+
+  scale_y_continuous(breaks = 0:7,limits=c(0,7))+
+  scale_color_manual(breaks = c("Observed data","Posterior trend","95% Credible Interval"), 
+                     values = c("#00BA38","darkgreen","grey36"))+
+  scale_shape_manual(breaks = c("Observed data","Posterior trend"), 
+                     values = c(17,7))+
+  scale_fill_manual(breaks = c("95% Credible Interval"), 
+                    values = c("grey36"))+
+  xlab("Week")+ylab("Abstinent days in past week")+
+  guides(color = guide_legend(title=expression(paste("Subject trajectory - ID:132"," (",hat(pi)[1],",",hat(pi)[2],",",hat(pi)[3],")=(0.00,0.93,0.07)")),
+                              override.aes = list(
+                                linetype = c(NA,1,1),
+                                shape=c(17,7,NA)),
+                              reverse = F), fill="none",shape="none",linetype="none")+
+  theme_gray(base_size = 14)+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.position = c(0.70,0.15),legend.text=element_text(size=12),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=16))
+
+
+
+
+#---------------------------------------------#
+# Subject ID XX from class 2: treatment group #
+#-------------------------------------------#
+
+
+ysubjc2obs<-dat[dat$id==idsubjc2,]
+numc2<-nrow(ysubjc2obs)
+
+
+dsubjc2<-data.frame(y=ysub_c2,
+                    t=grid,
+                    lb=ysub_c2cl[1,],
+                    ub=ysub_c2cl[2,])
+
+dplotc2subj<-data.frame(y=c(ysubjc2obs$y,dsubjc2$y),
+                        t=c(ysubjc2obs$t,dsubjc2$t)+5,
+                        lb=c(rep(NA,numc2),dsubjc2$lb),
+                        ub=c(rep(NA,numc2),dsubjc2$ub),
+                        gp=c(rep("Observed data",numc2),rep("Posterior trend",num)))
+
+
+ggplot(dplotc2subj,aes(x=t,y=y,col=gp,shape=gp))+
+  geom_line(linetype=c(rep("blank",numc2),rep("dotted",num)),size=1)+
+  geom_point(size=5.5)+
+  geom_ribbon(aes(ymin = lb, ymax = ub,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,alpha=0.3,show.legend = F)+
+  scale_x_continuous(breaks = 1:12,limits=c(1,12))+
+  scale_y_continuous(breaks = 0:7,limits=c(0,7))+
+  scale_color_manual(breaks = c("Observed data","Posterior trend","95% Credible Interval"), 
+                     values = c("#00BA38","darkgreen","grey36"))+
+  scale_shape_manual(breaks = c("Observed data","Posterior trend"), 
+                     values = c(17,7))+
+  scale_fill_manual(breaks = c("95% Credible Interval"), 
+                    values = c("grey36"))+
+  xlab("Week")+ylab("Abstinent days in past week")+
+  guides(color = guide_legend(title=expression(paste("Subject trajectory - ID:104"," (",hat(pi)[1],",",hat(pi)[2],",",hat(pi)[3],")=(0.00,1.00,0.00)")),
+                              override.aes = list(
+                                linetype = c(NA,1,1),
+                                shape=c(17,7,NA)),
+                              reverse = F), fill="none",shape="none",linetype="none")+
+  theme_gray(base_size = 14)+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.position = c(0.70,0.15),legend.text=element_text(size=12),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=16))
+
+
+#---------------------------------------------#
+# Subject ID XX from class 3: placebo group #
+#-------------------------------------------#
+
+
+ysubjc30obs<-dat[dat$id==idsubjc30,]
+numc30<-nrow(ysubjc30obs)
+
+
+dsubjc30<-data.frame(y=ysub_c30,
+                     t=grid,
+                     lb=ysub_c30cl[1,],
+                     ub=ysub_c30cl[2,])
+
+dplotc30subj<-data.frame(y=c(ysubjc30obs$y,dsubjc30$y),
+                         t=c(ysubjc30obs$t,dsubjc30$t)+5,
+                         lb=c(rep(NA,numc30),dsubjc30$lb),
+                         ub=c(rep(NA,numc30),dsubjc30$ub),
+                         gp=c(rep("Observed data",numc30),rep("Posterior trend",num)))
+
+
+ggplot(dplotc30subj,aes(x=t,y=y,col=gp,shape=gp))+
+  geom_line(linetype=c(rep("blank",numc30),rep("dotted",num)),size=1)+
+  geom_point(size=5.5)+
+  geom_ribbon(aes(ymin = lb, ymax = ub,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,alpha=0.3,show.legend = F)+
+  scale_x_continuous(breaks = 1:12,limits=c(1,12))+
+  scale_y_continuous(breaks = 0:7,limits=c(0,7))+
+  scale_color_manual(breaks = c("Observed data","Posterior trend","95% Credible Interval"), 
+                     values = c("#619CFF","darkblue","grey36"))+
+  scale_shape_manual(breaks = c("Observed data","Posterior trend"), 
+                     values = c(17,7))+
+  scale_fill_manual(breaks = c("95% Credible Interval"), 
+                    values = c("grey36"))+
+  xlab("Week")+ylab("Abstinent days in past week")+
+  guides(color = guide_legend(title=expression(paste("Subject trajectory - ID:62"," (",hat(pi)[1],",",hat(pi)[2],",",hat(pi)[3],")=(0.00,0.16,0.84)")),
+                              override.aes = list(
+                                linetype = c(NA,1,1),
+                                shape=c(17,7,NA)),
+                              reverse = F), fill="none",shape="none",linetype="none")+
+  theme_gray(base_size = 14)+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.position = c(0.28,0.20),legend.text=element_text(size=12),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=16))
+
+
+
+#---------------------------------------------#
+# Subject ID XX from class 3: treatment group #
+#-------------------------------------------#
+
+
+ysubjc3obs<-dat[dat$id==idsubjc3,]
+numc3<-nrow(ysubjc3obs)
+
+
+dsubjc3<-data.frame(y=ysub_c3,
+                    t=grid,
+                    lb=ysub_c3cl[1,],
+                    ub=ysub_c3cl[2,])
+
+dplotc3subj<-data.frame(y=c(ysubjc3obs$y,dsubjc3$y),
+                        t=c(ysubjc3obs$t,dsubjc3$t)+5,
+                        lb=c(rep(NA,numc3),dsubjc3$lb),
+                        ub=c(rep(NA,numc3),dsubjc3$ub),
+                        gp=c(rep("Observed data",numc3),rep("Posterior trend",num)))
+
+
+ggplot(dplotc3subj,aes(x=t,y=y,col=gp,shape=gp))+
+  geom_line(linetype=c(rep("blank",numc3),rep("dotted",num)),size=1)+
+  geom_point(size=5.5)+
+  geom_ribbon(aes(ymin = lb, ymax = ub,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,alpha=0.3,show.legend = F)+
+  scale_x_continuous(breaks = 1:12,limits=c(1,12))+
+  scale_y_continuous(breaks = 0:7,limits=c(0,7))+
+  scale_color_manual(breaks = c("Observed data","Posterior trend","95% Credible Interval"), 
+                     values = c("#619CFF","darkblue","grey36"))+
+  scale_shape_manual(breaks = c("Observed data","Posterior trend"), 
+                     values = c(17,7))+
+  scale_fill_manual(breaks = c("95% Credible Interval"), 
+                    values = c("grey36"))+
+  xlab("Week")+ylab("Abstinent days in past week")+
+  guides(color = guide_legend(title=expression(paste("Subject trajectory - ID:85"," (",hat(pi)[1],",",hat(pi)[2],",",hat(pi)[3],")=(0.00,0.19,0.81)")),
+                              override.aes = list(
+                                linetype = c(NA,1,1),
+                                shape=c(17,7,NA)),
+                              reverse = F), fill="none",shape="none",linetype="none")+
+  theme_gray(base_size = 14)+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.position = c(0.28,0.20),legend.text=element_text(size=12),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=16))
 
 
 #------------------------------------------------------------------------------#
