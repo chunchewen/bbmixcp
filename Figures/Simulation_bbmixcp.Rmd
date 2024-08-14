@@ -1,7 +1,16 @@
-# A Bayesian Beta-BinomialPiecewise Growth Mixture Model for Longitudinal Overdispersed Binomial Data
-# Nov 15, 2023
-# N=250
-#------------------------------------------------------------------------------#
+---
+title: "A Bayesian Beta-BinomialPiecewise Growth Mixture Model for Longitudinal Overdispersed Binomial Data"
+output: pdf_document
+date: "2024-08-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Package Installed 
+
+```{r library,warning=FALSE,message=FALSE}
 library(VGAM)     # for rbetabinom
 library(mvtnorm)  # for rmvt proposal
 library(truncnorm)# for rtruncnorm()
@@ -14,7 +23,11 @@ library(BayesLogit) # for rpg function
 library(ggplot2)
 library(dplyr)
 library(ggpubr)
-#------------------------------------------------------------------------------#
+```
+
+## Data Generating  
+
+```{r data}
 rm(list=ls())
 
 set.seed(25)
@@ -83,7 +96,7 @@ pi<-cbind(pi1,pi2,pi3)
 c<-rep(0,n)
 for(i in 1:n) c[i]<-(1:3)[rmultinom(1,1,pi[i,])==1]
 true.c<-c             # true class assignment 
-table(true.c)         # number of subjects in each class
+# table(true.c)         # number of subjects in each class
 n1<-length(c[c==1])   # number of subjects in class 1
 n2<-length(c[c==2])   # number of subjects in class 2
 n3<-n-n1-n2           # number of subjects in class 3
@@ -112,9 +125,9 @@ truesigmab3<-sigmab3<-matrix(c(0.15,0.05,0.06,
                                0.06,-0.04,0.10),3,3)
 
 # Cov matrix -> Corr matrix
-cov2cor(truesigmab1)
-cov2cor(truesigmab2)
-cov2cor(truesigmab3)
+# cov2cor(truesigmab1)
+# cov2cor(truesigmab2)
+# cov2cor(truesigmab3)
 
 
 q<-3   # num of random effects in each class
@@ -153,6 +166,238 @@ y<-rep(NA,n)
 y[C==1]<-rbetabinom(N1,size=ntrial,prob=mu1,rho=rho1) # class 1
 y[C==2]<-rbetabinom(N2,size=ntrial,prob=mu2,rho=rho2) # class 2
 y[C==3]<-rbetabinom(N3,size=ntrial,prob=mu3,rho=rho3) # class 3
+```
+
+
+### True abstinents day trends b/t groups in each class
+
+```{r,message=FALSE,warning=FALSE}
+#------------#
+# True Trend #
+#------------#
+
+num=30
+gridind<-seq(-4,7,length.out=num)
+
+#---------#
+# Class 1 #
+#---------#
+
+X1p<-cbind(1,gridind,0,0,(gridind-true.kappa[1])*(gridind>true.kappa[1]),0)
+X1t<-cbind(1,gridind,1,gridind,0,(gridind-true.kappa[2])*(gridind>true.kappa[2]))
+
+n1p<-sum(trt[true.c==1]==0) # number of subject in class 1 (placebo)
+n1t<-sum(trt[true.c==1]==1) # number of subject in class 1 (tx)
+
+
+Y1p<-matrix(NA,n1p,num)     # Observed subject-level trend in class 1 (placebo)
+Y1t<-matrix(NA,n1t,num)     # Observed subject-level trend in class 1 (tx)
+
+# Class 1 - Placebo #
+for(l in 1:n1p){
+  eta1p<-X1p%*%c(true.beta10,true.beta1)+(trueb1[trt[true.c==1]==0,1])[l]+
+    (trueb1[trt[true.c==1]==0,2])[l]*gridind+
+    (trueb1[trt[true.c==1]==0,3])[l]*(gridind-true.kappa[1])*(gridind>true.kappa[1])
+  y1p<-1/(1+exp(-eta1p))*7
+  
+  Y1p[l,]<-y1p
+}
+
+# Class 1 - Tx #
+for(l in 1:n1t){
+  eta1t<-X1t%*%c(true.beta10,true.beta1)+(trueb1[trt[true.c==1]==1,1])[l]+
+    (trueb1[trt[true.c==1]==1,2])[l]*gridind+
+    (trueb1[trt[true.c==1]==1,3])[l]*(gridind-true.kappa[2])*(gridind>true.kappa[2])
+  y1t<-1/(1+exp(-eta1t))*7
+  
+  Y1t[l,]<-y1t
+}
+
+
+my1p<-colMeans(Y1p)
+my1t<-colMeans(Y1t)
+
+
+dplotc0_c1<-data.frame(y=c(my1p,my1t),
+                       t=rep(gridind+5,2),
+                       gp=rep(1:2,each=num))
+
+dplotc0_c1$gp<-factor(dplotc0_c1$gp,levels = c(1,2),labels=c("Class 1 - Placebo","Class 1 - Varenicline"))
+
+
+plot_c1=ggplot(dplotc0_c1,aes(x=t,y=y,shape=gp,color=gp))+
+  geom_line(linewidth=1.5)+
+  geom_vline(aes(xintercept=7,col="Changepoint - Placebo"),
+             linetype=3,linewidth=1.5,show.legend = F)+
+  geom_vline(aes(xintercept=7,col="Changepoint - Varenicline"),
+             linetype=3,linewidth=1.5,show.legend = F)+
+  xlab("Week")+ylab("Mean abstinent days")+
+  scale_x_continuous(breaks = 1:12)+scale_y_continuous(limits = c(0,7),
+                                                       breaks = seq(0,7,by=1))+
+  scale_color_manual(breaks = c("Class 1 - Placebo","Class 1 - Varenicline","Changepoint - Placebo","Changepoint - Varenicline"), 
+                     values = c("#E69F00","#56B4E9","black","black"))+
+  scale_shape_manual(breaks = c("Class 1 - Placebo","Class 1 - Varenicline"), 
+                     values = c(2,7))+
+  xlab("Week")+ylab("Mean abstinent days in past week")+
+  guides(color = guide_legend(title="True Trend - Class 1",
+                              override.aes = list(
+                                linetype = c(1,1,3,3),
+                                shape=c(2,7,NA,NA)),
+                              reverse = F), fill="none",shape="none",linetype="none")+
+  theme_gray(base_size = 14)+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.position = c(0.80,0.75),legend.text=element_text(size=12),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14))
+
+
+#---------#
+# Class 2 #
+#---------#
+
+X2p<-cbind(1,gridind,0,0,(gridind-true.kappa[3])*(gridind>true.kappa[3]),0)
+X2t<-cbind(1,gridind,1,gridind,0,(gridind-true.kappa[4])*(gridind>true.kappa[4]))
+
+n2p<-sum(trt[true.c==2]==0) # number of subject in class 2 (placebo)
+n2t<-sum(trt[true.c==2]==1) # number of subject in class 2 (tx)
+
+
+Y2p<-matrix(NA,n2p,num)     # Observed subject-level trend in class 2 (placebo)
+Y2t<-matrix(NA,n2t,num)     # Observed subject-level trend in class 2 (tx)
+
+# Class 2 - Placebo #
+for(l in 1:n2p){
+  eta2p<-X2p%*%c(true.beta20,true.beta2)+(trueb2[trt[true.c==2]==0,1])[l]+
+    (trueb2[trt[true.c==2]==0,2])[l]*gridind+
+    (trueb2[trt[true.c==2]==0,3])[l]*(gridind-true.kappa[3])*(gridind>true.kappa[3])
+  y2p<-1/(1+exp(-eta2p))*7
+  
+  Y2p[l,]<-y2p
+}
+
+# Class 2 - Tx #
+for(l in 1:n2t){
+  eta2t<-X2t%*%c(true.beta20,true.beta2)+(trueb2[trt[true.c==2]==1,1])[l]+
+    (trueb2[trt[true.c==2]==1,2])[l]*gridind+
+    (trueb2[trt[true.c==2]==1,3])[l]*(gridind-true.kappa[4])*(gridind>true.kappa[4])
+  y2t<-1/(1+exp(-eta2t))*7
+  
+  Y2t[l,]<-y2t
+}
+
+
+my2p<-colMeans(Y2p)
+my2t<-colMeans(Y2t)
+
+
+dplotc0_c2<-data.frame(y=c(my2p,my2t),
+                       t=rep(gridind+5,2),
+                       gp=rep(1:2,each=num))
+
+dplotc0_c2$gp<-factor(dplotc0_c2$gp,levels = c(1,2),labels=c("Class 2 - Placebo","Class 2 - Varenicline"))
+
+plot_c2=ggplot(dplotc0_c2,aes(x=t,y=y,shape=gp,color=gp))+
+  geom_line(linewidth=1.5)+
+  geom_vline(aes(xintercept=5,col="Changepoint - Placebo"),linetype=3,
+             linewidth=1.5,show.legend = F)+
+  geom_vline(aes(xintercept=6,col="Changepoint - Varenicline"),linetype=3,
+             linewidth=1.5,show.legend = F)+
+  xlab("Week")+ylab("Mean abstinent days")+
+  scale_x_continuous(breaks = 1:12)+scale_y_continuous(limits = c(0,7),breaks = seq(0,7,by=1))+
+  scale_color_manual(breaks = c("Class 2 - Placebo","Class 2 - Varenicline","Changepoint - Placebo","Changepoint - Varenicline"), 
+                     values = c("#CC79A7","#0072B2","#CC79A7","#0072B2"))+
+  scale_shape_manual(breaks = c("Class 2 - Placebo","Class 2 - Varenicline"), 
+                     values = c(2,7))+
+  xlab("Week")+ylab("Mean abstinent days in past week")+
+  guides(color = guide_legend(title="True Trend - Class 2",
+                              override.aes = list(
+                                linetype = c(1,1,3,3),
+                                shape=c(2,7,NA,NA)),
+                              reverse = F), fill="none",shape="none",linetype="none")+
+  theme_gray(base_size = 14)+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.position = c(0.85,0.80),legend.text=element_text(size=8),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14))
+
+
+#---------#
+# Class 3 #
+#---------#
+
+X3p<-cbind(1,gridind,0,0,(gridind-true.kappa[5])*(gridind>true.kappa[5]),0)
+X3t<-cbind(1,gridind,1,gridind,0,(gridind-true.kappa[6])*(gridind>true.kappa[6]))
+
+n3p<-sum(trt[true.c==3]==0) # number of subject in class 3 (placebo)
+n3t<-sum(trt[true.c==3]==1) # number of subject in class 3 (tx)
+
+
+Y3p<-matrix(NA,n3p,num)     # Observed subject-level trend in class 3 (placebo)
+Y3t<-matrix(NA,n3t,num)     # Observed subject-level trend in class 3 (tx)
+
+# Class 3 - Placebo #
+for(l in 1:n3p){
+  eta3p<-X3p%*%c(true.beta30,true.beta3)+(trueb3[trt[true.c==3]==0,1])[l]+
+    (trueb3[trt[true.c==3]==0,2])[l]*gridind+
+    (trueb3[trt[true.c==3]==0,3])[l]*(gridind-true.kappa[5])*(gridind>true.kappa[5])
+  y3p<-1/(1+exp(-eta3p))*7
+  
+  Y3p[l,]<-y3p
+}
+
+# Class 3 - Tx #
+for(l in 1:n3t){
+  eta3t<-X3t%*%c(true.beta30,true.beta3)+(trueb3[trt[true.c==3]==1,1])[l]+
+    (trueb3[trt[true.c==3]==1,2])[l]*gridind+
+    (trueb3[trt[true.c==3]==1,3])[l]*(gridind-true.kappa[6])*(gridind>true.kappa[6])
+  y3t<-1/(1+exp(-eta3t))*7
+  
+  Y3t[l,]<-y3t
+}
+
+
+my3p<-colMeans(Y3p)
+my3t<-colMeans(Y3t)
+
+
+dplotc0_c3<-data.frame(y=c(my3p,my3t),
+                       t=rep(gridind+5,2),
+                       gp=rep(1:2,each=num))
+
+dplotc0_c3$gp<-factor(dplotc0_c3$gp,levels = c(1,2),labels=c("Class 3 - Placebo","Class 3 - Varenicline"))
+
+
+ggplot(dplotc0_c3,aes(x=t,y=y,shape=gp,color=gp))+
+  geom_line(linewidth=1.5)+
+  geom_vline(aes(xintercept=6,col="Changepoint - Placebo"),
+             linetype=3,linewidth=1.5,show.legend = F)+
+  geom_vline(aes(xintercept=8,col="Changepoint - Varenicline"),
+             linetype=3,linewidth=1.5,show.legend = F)+
+  xlab("Week")+ylab("Mean abstinent days")+
+  scale_x_continuous(breaks = 1:12)+scale_y_continuous(limits = c(0,7),breaks = seq(0,7,by=1))+
+  scale_color_manual(breaks = c("Class 3 - Placebo","Class 3 - Varenicline","Changepoint - Placebo","Changepoint - Varenicline"), 
+                     values = c("#D55E00","#009E73","#D55E00","#009E73"))+
+  scale_shape_manual(breaks = c("Class 3 - Placebo","Class 3 - Varenicline"), 
+                     values = c(2,7))+
+  xlab("Week")+ylab("Mean abstinent days in past week")+
+  guides(color = guide_legend(title="True Trend - Class 3",
+                              override.aes = list(
+                                linetype = c(1,1,3,3),
+                                shape=c(2,7,NA,NA)),
+                              reverse = F), fill="none",shape="none",linetype="none")+
+  theme_gray(base_size = 14)+
+  theme(legend.key = element_rect(fill = "white"),
+        legend.position = c(0.20,0.25),legend.text=element_text(size=15),
+        axis.text=element_text(size=12),
+        axis.title=element_text(size=14))
+
+```
+
+\pagebreak
+
+## MCMC Set-Up
+
+```{r}
 #------------------------------------------------------------------------------#
 # MCMC prep #
 #-----------#
@@ -286,6 +531,11 @@ Sigmab2<-matrix(NA,lastit,q^2)
 Sigmab3<-matrix(NA,lastit,q^2)
 B1s<-B2s<-B3s<-matrix(NA,lastit,n)
 
+```
+
+### MCMC Algorithm (not run)
+
+```{r,eval=FALSE}
 set.seed(1234)
 time.start<-proc.time()
 for (i in 1:nsim){
@@ -494,7 +744,8 @@ for (i in 1:nsim){
   lnew<-sum(dbetabinom(y[C==1],size=ntrial,prob=mu[C==1],rho=rho1new,log=T))
   
   # Acceptance prob on log scale
-  rrho1<-lnew-lold+dtnorm(rho1,rho1new,sqrt(sigmar0),0,1,log=T)-dtnorm(rho1new,rho1,sqrt(sigmar0),0,1,log=T)
+  rrho1<-lnew-lold+dtnorm(rho1,rho1new,sqrt(sigmar0),0,1,log=T)-
+    dtnorm(rho1new,rho1,sqrt(sigmar0),0,1,log=T)
   if(log(runif(1))<rrho1) {
     rho1<-rho1new
     A4<-A4+1
@@ -511,7 +762,8 @@ for (i in 1:nsim){
   lnew<-sum(dbetabinom(y[C==2],size=ntrial,prob=mu[C==2],rho=rho2new,log=T))
   
   # Acceptance prob on log scale
-  rrho2<-lnew-lold+dtnorm(rho2,rho2new,sqrt(sigmar0),0,1,log=T)-dtnorm(rho2new,rho2,sqrt(sigmar0),0,1,log=T)
+  rrho2<-lnew-lold+dtnorm(rho2,rho2new,sqrt(sigmar0),0,1,log=T)-
+    dtnorm(rho2new,rho2,sqrt(sigmar0),0,1,log=T)
   if(log(runif(1))<rrho2) {
     rho2<-rho2new
     A5<-A5+1
@@ -528,7 +780,8 @@ for (i in 1:nsim){
   lnew<-sum(dbetabinom(y[C==3],size=ntrial,prob=mu[C==3],rho=rho3new,log=T))
   
   # Acceptance prob on log scale
-  rrho3<-lnew-lold+dtnorm(rho3,rho3new,sqrt(sigmar0),0,1,log=T)-dtnorm(rho3new,rho3,sqrt(sigmar0),0,1,log=T)
+  rrho3<-lnew-lold+dtnorm(rho3,rho3new,sqrt(sigmar0),0,1,log=T)-
+    dtnorm(rho3new,rho3,sqrt(sigmar0),0,1,log=T)
   if(log(runif(1))<rrho3) {
     rho3<-rho3new
     A6<-A6+1
@@ -558,17 +811,20 @@ for (i in 1:nsim){
   
   b11new<-rnorm(n1,b1[c==1],sqrt(sigmab110))
   
-  eta<-beta10+X1[C==1,]%*%beta1+rep(b11new,nis1)+rep(b2[c==1],nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
+  eta<-beta10+X1[C==1,]%*%beta1+rep(b11new,nis1)+
+    rep(b2[c==1],nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
   mu<-1/(1+exp(-eta))
   
   lnew<-tapply(dbetabinom(y[C==1],size=ntrial,prob=mu,rho=rho1,log=T),id[C==1],sum)
   
-  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+rep(b2[c==1],nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
+  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+
+    rep(b2[c==1],nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
   mu<-1/(1+exp(-eta))
   
   lold<-tapply(dbetabinom(y[C==1],size=ntrial,prob=mu,rho=rho1,log=T),id[C==1],sum)
   
-  ratio<-lnew+dnorm(b11new,priormean,sqrt(priorvar),log=T)-(lold+dnorm(b1[c==1],priormean,sqrt(priorvar),log=T))
+  ratio<-lnew+dnorm(b11new,priormean,sqrt(priorvar),log=T)-
+    (lold+dnorm(b1[c==1],priormean,sqrt(priorvar),log=T))
   
   utmp<-1*(log(runif(n1))<ratio)
   b1[c==1][utmp==1]<-b11new[utmp==1]
@@ -580,17 +836,20 @@ for (i in 1:nsim){
   
   b12new<-rnorm(n1,b2[c==1],sqrt(sigmab120))
   
-  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+rep(b12new,nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
+  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+
+    rep(b12new,nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
   mu<-1/(1+exp(-eta))
   
   lnew<-tapply(dbetabinom(y[C==1],size=ntrial,prob=mu,rho=rho1,log=T),id[C==1],sum)
   
-  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+rep(b2[c==1],nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
+  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+
+    rep(b2[c==1],nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
   mu<-1/(1+exp(-eta))
   
   lold<-tapply(dbetabinom(y[C==1],size=ntrial,prob=mu,rho=rho1,log=T),id[C==1],sum)
   
-  ratio<-lnew+dnorm(b12new,priormean,sqrt(priorvar),log=T)-(lold+dnorm(b2[c==1],priormean,sqrt(priorvar),log=T))
+  ratio<-lnew+dnorm(b12new,priormean,sqrt(priorvar),log=T)-
+    (lold+dnorm(b2[c==1],priormean,sqrt(priorvar),log=T))
   
   utmp<-1*(log(runif(n1))<ratio)
   b2[c==1][utmp==1]<-b12new[utmp==1]
@@ -601,17 +860,20 @@ for (i in 1:nsim){
   
   b13new<-rnorm(n1,b3[c==1],sqrt(sigmab130))
   
-  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+rep(b2[c==1],nis1)*t[C==1]+rep(b13new,nis1)*xg1[C==1]
+  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+
+    rep(b2[c==1],nis1)*t[C==1]+rep(b13new,nis1)*xg1[C==1]
   mu<-1/(1+exp(-eta))
   
   lnew<-tapply(dbetabinom(y[C==1],size=ntrial,prob=mu,rho=rho1,log=T),id[C==1],sum)
   
-  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+rep(b2[c==1],nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
+  eta<-beta10+X1[C==1,]%*%beta1+rep(b1[c==1],nis1)+
+    rep(b2[c==1],nis1)*t[C==1]+rep(b3[c==1],nis1)*xg1[C==1]
   mu<-1/(1+exp(-eta))
   
   lold<-tapply(dbetabinom(y[C==1],size=ntrial,prob=mu,rho=rho1,log=T),id[C==1],sum)
   
-  ratio<-lnew+dnorm(b13new,priormean,sqrt(priorvar),log=T)-(lold+dnorm(b3[c==1],priormean,sqrt(priorvar),log=T))
+  ratio<-lnew+dnorm(b13new,priormean,sqrt(priorvar),log=T)-
+    (lold+dnorm(b3[c==1],priormean,sqrt(priorvar),log=T))
   
   utmp<-1*(log(runif(n1))<ratio)
   b3[c==1][utmp==1]<-b13new[utmp==1]
@@ -623,17 +885,20 @@ for (i in 1:nsim){
   
   b21new<-rnorm(n2,b1[c==2],sqrt(sigmab210))
   
-  eta<-beta20+X2[C==2,]%*%beta2+rep(b21new,nis2)+rep(b2[c==2],nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
+  eta<-beta20+X2[C==2,]%*%beta2+rep(b21new,nis2)+
+    rep(b2[c==2],nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
   mu<-1/(1+exp(-eta))
   
   lnew<-tapply(dbetabinom(y[C==2],size=ntrial,prob=mu,rho=rho2,log=T),id[C==2],sum)
   
-  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+rep(b2[c==2],nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
+  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+
+    rep(b2[c==2],nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
   mu<-1/(1+exp(-eta))
   
   lold<-tapply(dbetabinom(y[C==2],size=ntrial,prob=mu,rho=rho2,log=T),id[C==2],sum)
   
-  ratio<-lnew+dnorm(b21new,priormean,sqrt(priorvar),log=T)-(lold+dnorm(b1[c==2],priormean,sqrt(priorvar),log=T))
+  ratio<-lnew+dnorm(b21new,priormean,sqrt(priorvar),log=T)-
+    (lold+dnorm(b1[c==2],priormean,sqrt(priorvar),log=T))
   
   utmp<-1*(log(runif(n2))<ratio)
   b1[c==2][utmp==1]<-b21new[utmp==1]
@@ -646,17 +911,20 @@ for (i in 1:nsim){
   
   b22new<-rnorm(n2,b2[c==2],sqrt(sigmab220))
   
-  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+rep(b22new,nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
+  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+
+    rep(b22new,nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
   mu<-1/(1+exp(-eta))
   
   lnew<-tapply(dbetabinom(y[C==2],size=ntrial,prob=mu,rho=rho2,log=T),id[C==2],sum)
   
-  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+rep(b2[c==2],nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
+  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+
+    rep(b2[c==2],nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
   mu<-1/(1+exp(-eta))
   
   lold<-tapply(dbetabinom(y[C==2],size=ntrial,prob=mu,rho=rho2,log=T),id[C==2],sum)
   
-  ratio<-lnew+dnorm(b22new,priormean,sqrt(priorvar),log=T)-(lold+dnorm(b2[c==2],priormean,sqrt(priorvar),log=T))
+  ratio<-lnew+dnorm(b22new,priormean,sqrt(priorvar),log=T)-
+    (lold+dnorm(b2[c==2],priormean,sqrt(priorvar),log=T))
   
   utmp<-1*(log(runif(n2))<ratio)
   b2[c==2][utmp==1]<-b22new[utmp==1]
@@ -667,17 +935,20 @@ for (i in 1:nsim){
   
   b23new<-rnorm(n2,b3[c==2],sqrt(sigmab230))
   
-  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+rep(b2[c==2],nis2)*t[C==2]+rep(b23new,nis2)*xg2[C==2]
+  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+
+    rep(b2[c==2],nis2)*t[C==2]+rep(b23new,nis2)*xg2[C==2]
   mu<-1/(1+exp(-eta))
   
   lnew<-tapply(dbetabinom(y[C==2],size=ntrial,prob=mu,rho=rho2,log=T),id[C==2],sum)
   
-  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+rep(b2[c==2],nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
+  eta<-beta20+X2[C==2,]%*%beta2+rep(b1[c==2],nis2)+
+    rep(b2[c==2],nis2)*t[C==2]+rep(b3[c==2],nis2)*xg2[C==2]
   mu<-1/(1+exp(-eta))
   
   lold<-tapply(dbetabinom(y[C==2],size=ntrial,prob=mu,rho=rho2,log=T),id[C==2],sum)
   
-  ratio<-lnew+dnorm(b23new,priormean,sqrt(priorvar),log=T)-(lold+dnorm(b3[c==2],priormean,sqrt(priorvar),log=T))
+  ratio<-lnew+dnorm(b23new,priormean,sqrt(priorvar),log=T)-
+    (lold+dnorm(b3[c==2],priormean,sqrt(priorvar),log=T))
   
   utmp<-1*(log(runif(n2))<ratio)
   b3[c==2][utmp==1]<-b23new[utmp==1]
@@ -689,17 +960,20 @@ for (i in 1:nsim){
   
   b31new<-rnorm(n3,b1[c==3],sqrt(sigmab310))
   
-  eta<-beta30+X3[C==3,]%*%beta3+rep(b31new,nis3)+rep(b2[c==3],nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
+  eta<-beta30+X3[C==3,]%*%beta3+rep(b31new,nis3)+
+    rep(b2[c==3],nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
   mu<-1/(1+exp(-eta))
   
   lnew<-tapply(dbetabinom(y[C==3],size=ntrial,prob=mu,rho=rho3,log=T),id[C==3],sum)
   
-  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+rep(b2[c==3],nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
+  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+
+    rep(b2[c==3],nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
   mu<-1/(1+exp(-eta))
   
   lold<-tapply(dbetabinom(y[C==3],size=ntrial,prob=mu,rho=rho3,log=T),id[C==3],sum)
   
-  ratio<-lnew+dnorm(b31new,priormean,sqrt(priorvar),log=T)-(lold+dnorm(b1[c==3],priormean,sqrt(priorvar),log=T))
+  ratio<-lnew+dnorm(b31new,priormean,sqrt(priorvar),log=T)-
+    (lold+dnorm(b1[c==3],priormean,sqrt(priorvar),log=T))
   
   utmp<-1*(log(runif(n3))<ratio)
   b1[c==3][utmp==1]<-b31new[utmp==1]
@@ -711,17 +985,20 @@ for (i in 1:nsim){
   
   b32new<-rnorm(n3,b2[c==3],sqrt(sigmab320))
   
-  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+rep(b32new,nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
+  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+
+    rep(b32new,nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
   mu<-1/(1+exp(-eta))
   
   lnew<-tapply(dbetabinom(y[C==3],size=ntrial,prob=mu,rho=rho3,log=T),id[C==3],sum)
   
-  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+rep(b2[c==3],nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
+  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+
+    rep(b2[c==3],nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
   mu<-1/(1+exp(-eta))
   
   lold<-tapply(dbetabinom(y[C==3],size=ntrial,prob=mu,rho=rho3,log=T),id[C==3],sum)
   
-  ratio<-lnew+dnorm(b32new,priormean,sqrt(priorvar),log=T)-(lold+dnorm(b2[c==3],priormean,sqrt(priorvar),log=T))
+  ratio<-lnew+dnorm(b32new,priormean,sqrt(priorvar),log=T)-
+    (lold+dnorm(b2[c==3],priormean,sqrt(priorvar),log=T))
   
   utmp<-1*(log(runif(n3))<ratio)
   b2[c==3][utmp==1]<-b32new[utmp==1]
@@ -732,17 +1009,20 @@ for (i in 1:nsim){
   
   b33new<-rnorm(n3,b3[c==3],sqrt(sigmab330))
   
-  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+rep(b2[c==3],nis3)*t[C==3]+rep(b33new,nis3)*xg3[C==3]
+  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+
+    rep(b2[c==3],nis3)*t[C==3]+rep(b33new,nis3)*xg3[C==3]
   mu<-1/(1+exp(-eta))
   
   lnew<-tapply(dbetabinom(y[C==3],size=ntrial,prob=mu,rho=rho3,log=T),id[C==3],sum)
   
-  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+rep(b2[c==3],nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
+  eta<-beta30+X3[C==3,]%*%beta3+rep(b1[c==3],nis3)+
+    rep(b2[c==3],nis3)*t[C==3]+rep(b3[c==3],nis3)*xg3[C==3]
   mu<-1/(1+exp(-eta))
   
   lold<-tapply(dbetabinom(y[C==3],size=ntrial,prob=mu,rho=rho3,log=T),id[C==3],sum)
   
-  ratio<-lnew+dnorm(b33new,priormean,sqrt(priorvar),log=T)-(lold+dnorm(b3[c==3],priormean,sqrt(priorvar),log=T))
+  ratio<-lnew+dnorm(b33new,priormean,sqrt(priorvar),log=T)-
+    (lold+dnorm(b3[c==3],priormean,sqrt(priorvar),log=T))
   
   utmp<-1*(log(runif(n3))<ratio)
   b3[c==3][utmp==1]<-b33new[utmp==1]
@@ -765,7 +1045,8 @@ for (i in 1:nsim){
   mu<-1/(1+exp(-eta))
   lold<-sum(dbetabinom(y[C==1 & tx==0],ntrial,mu[C==1 & tx==0],rho1,log=T))
   
-  rk11<-lnew-lold+dtnorm(kappa[1],kappa11new,sqrt(sigkap11),L0,U0,log=T)-dtnorm(kappa11new,kappa[1],sqrt(sigkap11),L0,U0,log=T)
+  rk11<-lnew-lold+dtnorm(kappa[1],kappa11new,sqrt(sigkap11),L0,U0,log=T)-
+    dtnorm(kappa11new,kappa[1],sqrt(sigkap11),L0,U0,log=T)
   
   if(log(runif(1))<rk11) {
     kappa[1]<-kappa11new
@@ -790,7 +1071,8 @@ for (i in 1:nsim){
   mu<-1/(1+exp(-eta))
   lold<-sum(dbetabinom(y[C==1 & tx==1],ntrial,mu[C==1 & tx==1],rho1,log=T))
   
-  rk12<-lnew-lold+dtnorm(kappa[2],kappa12new,sqrt(sigkap12),L0,U0,log=T)-dtnorm(kappa12new,kappa[2],sqrt(sigkap12),L0,U0,log=T)
+  rk12<-lnew-lold+dtnorm(kappa[2],kappa12new,sqrt(sigkap12),L0,U0,log=T)-
+    dtnorm(kappa12new,kappa[2],sqrt(sigkap12),L0,U0,log=T)
   
   if(log(runif(1))<rk12) {
     kappa[2]<-kappa12new
@@ -814,7 +1096,8 @@ for (i in 1:nsim){
   mu<-1/(1+exp(-eta))
   lold<-sum(dbetabinom(y[C==2 & tx==0],ntrial,mu[C==2 & tx==0],rho2,log=T))
   
-  rk21<-lnew-lold+dtnorm(kappa[3],kappa21new,sqrt(sigkap21),L0,U0,log=T)-dtnorm(kappa21new,kappa[3],sqrt(sigkap21),L0,U0,log=T)
+  rk21<-lnew-lold+dtnorm(kappa[3],kappa21new,sqrt(sigkap21),L0,U0,log=T)-
+    dtnorm(kappa21new,kappa[3],sqrt(sigkap21),L0,U0,log=T)
   
   if(log(runif(1))<rk21) {
     kappa[3]<-kappa21new
@@ -839,7 +1122,8 @@ for (i in 1:nsim){
   mu<-1/(1+exp(-eta))
   lold<-sum(dbetabinom(y[C==2 & tx==1],ntrial,mu[C==2 & tx==1],rho2,log=T))
   
-  rk22<-lnew-lold+dtnorm(kappa[4],kappa22new,sqrt(sigkap22),L0,U0,log=T)-dtnorm(kappa22new,kappa[4],sqrt(sigkap22),L0,U0,log=T)
+  rk22<-lnew-lold+dtnorm(kappa[4],kappa22new,sqrt(sigkap22),L0,U0,log=T)-
+    dtnorm(kappa22new,kappa[4],sqrt(sigkap22),L0,U0,log=T)
   
   if(log(runif(1))<rk22) {
     kappa[4]<-kappa22new
@@ -863,7 +1147,8 @@ for (i in 1:nsim){
   mu<-1/(1+exp(-eta))
   lold<-sum(dbetabinom(y[C==3 & tx==0],ntrial,mu[C==3 & tx==0],rho3,log=T))
   
-  rk31<-lnew-lold+dtnorm(kappa[5],kappa31new,sqrt(sigkap31),L0,U0,log=T)-dtnorm(kappa31new,kappa[5],sqrt(sigkap31),L0,U0,log=T)
+  rk31<-lnew-lold+dtnorm(kappa[5],kappa31new,sqrt(sigkap31),L0,U0,log=T)-
+    dtnorm(kappa31new,kappa[5],sqrt(sigkap31),L0,U0,log=T)
   
   if(log(runif(1))<rk31) {
     kappa[5]<-kappa31new
@@ -888,7 +1173,8 @@ for (i in 1:nsim){
   mu<-1/(1+exp(-eta))
   lold<-sum(dbetabinom(y[C==3 & tx==1],ntrial,mu[C==3 & tx==1],rho3,log=T))
   
-  rk32<-lnew-lold+dtnorm(kappa[6],kappa32new,sqrt(sigkap32),L0,U0,log=T)-dtnorm(kappa32new,kappa[6],sqrt(sigkap32),L0,U0,log=T)
+  rk32<-lnew-lold+dtnorm(kappa[6],kappa32new,sqrt(sigkap32),L0,U0,log=T)-
+    dtnorm(kappa32new,kappa[6],sqrt(sigkap32),L0,U0,log=T)
   
   if(log(runif(1))<rk32) {
     kappa[6]<-kappa32new
@@ -946,6 +1232,12 @@ for (i in 1:nsim){
 }
 (time.tol<-proc.time()-time.start)
 
+```
+
+
+### Save/Load MCMC Samples
+
+```{r}
 #------------------------------------------------------------------------------#
 # Save/Load MCMC Samples #
 #------------------------#
@@ -969,48 +1261,85 @@ for (i in 1:nsim){
 #               B2s=B2s,
 #               B3s=B3s)
 
-# dir.sav<-"C:\\Users\\chech\\OneDrive - Medical University of South Carolina\\Research\\BB Mixture Model\\Github\\"
+dir.sav<-"C:\\Users\\chech\\OneDrive - Medical University of South Carolina\\Research\\BB Mixture Model\\Github\\"
 # save(samples,file=paste(dir.sav,"Simulation_bbmixcp.Rda",sep=""))
-# load(file=paste(dir.sav,"Simulation_bbmixcp.Rda",sep=""))
+load(file=paste(dir.sav,"Simulation_bbmixcp.Rda",sep=""))
 
-# Beta1=samples$Beta1
-# Beta2=samples$Beta2
-# Beta3=samples$Beta3
-# Rho1=samples$Rho1
-# Rho2=samples$Rho2
-# Rho3=samples$Rho3
-# Gamma1=samples$Gamma1
-# Gamma2=samples$Gamma2
-# Sigmab1=samples$Sigmab1
-# Sigmab2=samples$Sigmab2
-# Sigmab3=samples$Sigmab3
-# Kappa=samples$Kappa
-# Cs=samples$Cs
-# P1s=samples$P1s
-# P2s=samples$P2s
-# P3s=samples$P3s
-# B1s=samples$B1s
-# B2s=samples$B2s
-# B3s=samples$B3s
+Beta1=samples$Beta1
+Beta2=samples$Beta2
+Beta3=samples$Beta3
+Rho1=samples$Rho1
+Rho2=samples$Rho2
+Rho3=samples$Rho3
+Gamma1=samples$Gamma1
+Gamma2=samples$Gamma2
+Sigmab1=samples$Sigmab1
+Sigmab2=samples$Sigmab2
+Sigmab3=samples$Sigmab3
+Kappa=samples$Kappa
+Cs=samples$Cs
+P1s=samples$P1s
+P2s=samples$P2s
+P3s=samples$P3s
+B1s=samples$B1s
+B2s=samples$B2s
+B3s=samples$B3s
+```
+
+### Label switching (not run)
+
+```{r, eval=FALSE}
 #------------------------------------------------------------------------------#
+# Label Switching #
+#-----------------#
+library(label.switching)
 
-# Accp. Counter
-A10/nsim
-A20/nsim
-A30/nsim
-A1/nsim
-A2/nsim
-A3/nsim
-A4/nsim
-A5/nsim
-A6/nsim
-Ak11/nsim
-Ak12/nsim
-Ak21/nsim
-Ak22/nsim
-Ak31/nsim
-Ak32/nsim
+ls<-label.switching(method=c("ECR"),
+                    zpivot=Cs[c(216,70),],z = Cs,K = 3)
 
+#------#
+# Beta #
+#------#
+
+mcmc.Beta<-array(c(rbind(Beta1,Beta2,Beta3)),dim=c(lastit,3,5))
+
+
+matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,1],type="l",
+        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[0]))
+matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,2],type="l",
+        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[1]))
+matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,3],type="l",
+        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[2]))
+matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,4],type="l",
+        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[3]))
+matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,5],type="l",
+        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[4]))
+
+
+#-------------#
+# Rho + Kappa #
+#-------------#
+
+Rho<-cbind(Rho1,Rho2,Rho3)
+
+
+mcmc.par<-array(dim=c(lastit,3,3))
+mcmc.par[,,1]<-Rho
+mcmc.par[,,2]<-Kappa[,c(1,3,5)]
+mcmc.par[,,3]<-Kappa[,c(2,4,6)]
+
+
+matplot(permute.mcmc(mcmc.par,ls$permutations$"ECR-1")$output[,,1],type="l",
+        xlab="iteration",main="ECR (1st pivot)",ylab =expression(rho))
+matplot(permute.mcmc(mcmc.par,ls$permutations$"ECR-1")$output[,,2],type="l",
+        xlab="iteration",main="ECR (1st pivot)",ylab =expression(kappa[1]))
+matplot(permute.mcmc(mcmc.par,ls$permutations$"ECR-1")$output[,,2],type="l",
+        xlab="iteration",main="ECR (1st pivot)",ylab =expression(kappa[2]))
+```
+
+## Results
+
+```{r}
 # Results
 mbeta1<-colMeans(Beta1)
 qbeta1<-apply(Beta1,2,quantile,c(0.025,0.975))
@@ -1092,161 +1421,15 @@ Cstmp<-t(apply(Cs,1,table)/n)
 colMeans(Cstmp)
 apply(Cstmp,2,quantile,c(.025,.975))
 
+```
 
-#------------------------------------------------------------------------------#
-# Label Switching #
-#-----------------#
-library(label.switching)
+\pagebreak
 
-ls<-label.switching(method=c("ECR"),
-                    zpivot=Cs[c(216,70),],z = Cs,K = 3)
+## Figures 
 
-#------#
-# Beta #
-#------#
+### Anbsinent trends b/t group in each class
 
-mcmc.Beta<-array(c(rbind(Beta1,Beta2,Beta3)),dim=c(lastit,3,5))
-
-
-matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,1],type="l",
-        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[0]))
-matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,2],type="l",
-        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[1]))
-matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,3],type="l",
-        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[2]))
-matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,4],type="l",
-        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[3]))
-matplot(permute.mcmc(mcmc.Beta,ls$permutations$"ECR-1")$output[,,5],type="l",
-        xlab="iteration",main="ECR (1st pivot)",ylab =expression(beta[4]))
-
-
-#-------------#
-# Rho + Kappa #
-#-------------#
-
-Rho<-cbind(Rho1,Rho2,Rho3)
-
-
-mcmc.par<-array(dim=c(lastit,3,3))
-mcmc.par[,,1]<-Rho
-mcmc.par[,,2]<-Kappa[,c(1,3,5)]
-mcmc.par[,,3]<-Kappa[,c(2,4,6)]
-
-
-matplot(permute.mcmc(mcmc.par,ls$permutations$"ECR-1")$output[,,1],type="l",
-        xlab="iteration",main="ECR (1st pivot)",ylab =expression(rho))
-matplot(permute.mcmc(mcmc.par,ls$permutations$"ECR-1")$output[,,2],type="l",
-        xlab="iteration",main="ECR (1st pivot)",ylab =expression(kappa[1]))
-matplot(permute.mcmc(mcmc.par,ls$permutations$"ECR-1")$output[,,2],type="l",
-        xlab="iteration",main="ECR (1st pivot)",ylab =expression(kappa[2]))
-
-#------------------------------------------------------------------------------#
-# Trace Plots #
-#-------------#
-plot(1:lastit,Beta1[,1],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[10]))
-abline(h=mbeta1[1],col="blue4")
-plot(1:lastit,Beta1[,2],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[11]))
-abline(h=mbeta1[2],col="blue4")
-plot(1:lastit,Beta1[,3],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[12]))
-abline(h=mbeta1[3],col="blue4")
-plot(1:lastit,Beta1[,4],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[13]))
-abline(h=mbeta1[4],col="blue4")
-plot(1:lastit,Beta1[,5],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[14]))
-abline(h=mbeta1[5],col="blue4")
-plot(1:lastit,Beta1[,6],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[15]))
-abline(h=mbeta1[6],col="blue4")
-
-plot(1:lastit,Beta2[,1],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[20]))
-abline(h=mbeta2[1],col="blue4")
-plot(1:lastit,Beta2[,2],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[21]))
-abline(h=mbeta2[2],col="blue4")
-plot(1:lastit,Beta2[,3],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[22]))
-abline(h=mbeta2[3],col="blue4")
-plot(1:lastit,Beta2[,4],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[23]))
-abline(h=mbeta2[4],col="blue4")
-plot(1:lastit,Beta2[,5],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[24]))
-abline(h=mbeta2[5],col="blue4")
-plot(1:lastit,Beta2[,6],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[25]))
-abline(h=mbeta2[6],col="blue4")
-
-plot(1:lastit,Beta3[,1],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[30]))
-abline(h=mbeta3[1],col="blue4")
-plot(1:lastit,Beta3[,2],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[31]))
-abline(h=mbeta3[2],col="blue4")
-plot(1:lastit,Beta3[,3],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[32]))
-abline(h=mbeta3[3],col="blue4")
-plot(1:lastit,Beta3[,4],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[33]))
-abline(h=mbeta3[4],col="blue4")
-plot(1:lastit,Beta3[,5],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[34]))
-abline(h=mbeta3[5],col="blue4")
-plot(1:lastit,Beta3[,6],type="l",col="darkgreen",xlab="Iteration",ylab=expression(beta[35]))
-abline(h=mbeta3[6],col="blue4")
-
-
-plot(1:lastit,Rho1,type="l",col="darkgreen",xlab="Iteration",ylab=expression(rho[1]))
-abline(h=mrho1,col="blue4")
-plot(1:lastit,Rho2,type="l",col="darkgreen",xlab="Iteration",ylab=expression(rho[2]))
-abline(h=mrho2,col="blue4")
-plot(1:lastit,Rho3,type="l",col="darkgreen",xlab="Iteration",ylab=expression(rho[3]))
-abline(h=mrho3,col="blue4")
-
-
-plot(1:lastit,Kappa[,1],type="l",col="darkgreen",xlab="Iteration",ylab=expression(kappa[11]))
-abline(h=mkap[1],col="blue4")
-plot(1:lastit,Kappa[,2],type="l",col="darkgreen",xlab="Iteration",ylab=expression(kappa[12]))
-abline(h=mkap[2],col="blue4")
-plot(1:lastit,Kappa[,3],type="l",col="darkgreen",xlab="Iteration",ylab=expression(kappa[21]))
-abline(h=mkap[3],col="blue4")
-plot(1:lastit,Kappa[,4],type="l",col="darkgreen",xlab="Iteration",ylab=expression(kappa[22]))
-abline(h=mkap[4],col="blue4")
-plot(1:lastit,Kappa[,5],type="l",col="darkgreen",xlab="Iteration",ylab=expression(kappa[31]))
-abline(h=mkap[5],col="blue4")
-plot(1:lastit,Kappa[,6],type="l",col="darkgreen",xlab="Iteration",ylab=expression(kappa[32]))
-abline(h=mkap[6],col="blue4")
-
-
-
-plot(1:lastit,Gamma1[,1],type="l",col="darkgreen",xlab="Iteration",ylab=expression(gamma[10]))
-abline(h=mgamma1[1],col="blue4")
-plot(1:lastit,Gamma1[,2],type="l",col="darkgreen",xlab="Iteration",ylab=expression(gamma[11]))
-abline(h=mgamma1[2],col="blue4")
-plot(1:lastit,Gamma1[,3],type="l",col="darkgreen",xlab="Iteration",ylab=expression(gamma[12]))
-abline(h=mgamma1[3],col="blue4")
-
-
-plot(1:lastit,Gamma2[,1],type="l",col="darkgreen",xlab="Iteration",ylab=expression(gamma[20]))
-abline(h=mgamma2[1],col="blue4")
-plot(1:lastit,Gamma2[,2],type="l",col="darkgreen",xlab="Iteration",ylab=expression(gamma[21]))
-abline(h=mgamma2[2],col="blue4")
-plot(1:lastit,Gamma2[,3],type="l",col="darkgreen",xlab="Iteration",ylab=expression(gamma[22]))
-abline(h=mgamma2[3],col="blue4")
-
-
-
-plot(1:lastit,Sigmab1[,1],type="l",col="darkgreen",xlab="Iteration",ylab=expression(sigma[b111]))
-abline(h=msigmab1[1],col="blue4")
-plot(1:lastit,Sigmab1[,2],type="l",col="darkgreen",xlab="Iteration",ylab=expression(sigma[b112]))
-abline(h=msigmab1[2],col="blue4")
-plot(1:lastit,Sigmab1[,4],type="l",col="darkgreen",xlab="Iteration",ylab=expression(sigma[b122]))
-abline(h=msigmab1[4],col="blue4")
-plot(1:lastit,Sigmab2[,1],type="l",col="darkgreen",xlab="Iteration",ylab=expression(sigma[b211]))
-abline(h=msigmab2[1],col="blue4")
-plot(1:lastit,Sigmab2[,2],type="l",col="darkgreen",xlab="Iteration",ylab=expression(sigma[b212]))
-abline(h=msigmab2[2],col="blue4")
-plot(1:lastit,Sigmab2[,4],type="l",col="darkgreen",xlab="Iteration",ylab=expression(sigma[b222]))
-abline(h=msigmab2[4],col="blue4")
-plot(1:lastit,Sigmab3[,1],type="l",col="darkgreen",xlab="Iteration",ylab=expression(sigma[b311]))
-abline(h=msigmab3[1],col="blue4")
-plot(1:lastit,Sigmab3[,2],type="l",col="darkgreen",xlab="Iteration",ylab=expression(sigma[b312]))
-abline(h=msigmab3[2],col="blue4")
-plot(1:lastit,Sigmab3[,4],type="l",col="darkgreen",xlab="Iteration",ylab=expression(sigma[b322]))
-abline(h=msigmab3[4],col="blue4")
-#------------------------------------------------------------------------------#
-
-
-
-
-
+```{r, message=FALSE,warning=FALSE}
 #------------------------------------------------------------------------------#
 # Population-Average Figures + Difference plot + Selected subject trajectories #
 #------------------------------------------------------------------------------#
@@ -1281,7 +1464,9 @@ Y1t<-matrix(NA,n1t,num)     # Observed subject-level trend in class 1 (tx)
 
 # Class 1 - Placebo #
 for(l in 1:n1p){
-  eta1p<-X1p%*%c(true.beta10,true.beta1)+(trueb1[trt[true.c==1]==0,1])[l]+(trueb1[trt[true.c==1]==0,2])[l]*gridind+(trueb1[trt[true.c==1]==0,3])[l]*(gridind-true.kappa[1])*(gridind>true.kappa[1])
+  eta1p<-X1p%*%c(true.beta10,true.beta1)+(trueb1[trt[true.c==1]==0,1])[l]+
+    (trueb1[trt[true.c==1]==0,2])[l]*gridind+
+    (trueb1[trt[true.c==1]==0,3])[l]*(gridind-true.kappa[1])*(gridind>true.kappa[1])
   y1p<-1/(1+exp(-eta1p))*7
   
   Y1p[l,]<-y1p
@@ -1289,7 +1474,9 @@ for(l in 1:n1p){
 
 # Class 1 - Tx #
 for(l in 1:n1t){
-  eta1t<-X1t%*%c(true.beta10,true.beta1)+(trueb1[trt[true.c==1]==1,1])[l]+(trueb1[trt[true.c==1]==1,2])[l]*gridind+(trueb1[trt[true.c==1]==1,3])[l]*(gridind-true.kappa[2])*(gridind>true.kappa[2])
+  eta1t<-X1t%*%c(true.beta10,true.beta1)+(trueb1[trt[true.c==1]==1,1])[l]+
+    (trueb1[trt[true.c==1]==1,2])[l]*gridind+
+    (trueb1[trt[true.c==1]==1,3])[l]*(gridind-true.kappa[2])*(gridind>true.kappa[2])
   y1t<-1/(1+exp(-eta1t))*7
   
   Y1t[l,]<-y1t
@@ -1316,7 +1503,9 @@ Y2t<-matrix(NA,n2t,num)     # Observed subject-level trend in class 2 (tx)
 
 # Class 2 - Placebo #
 for(l in 1:n2p){
-  eta2p<-X2p%*%c(true.beta20,true.beta2)+(trueb2[trt[true.c==2]==0,1])[l]+(trueb2[trt[true.c==2]==0,2])[l]*gridind+(trueb2[trt[true.c==2]==0,3])[l]*(gridind-true.kappa[3])*(gridind>true.kappa[3])
+  eta2p<-X2p%*%c(true.beta20,true.beta2)+(trueb2[trt[true.c==2]==0,1])[l]+
+    (trueb2[trt[true.c==2]==0,2])[l]*gridind+
+    (trueb2[trt[true.c==2]==0,3])[l]*(gridind-true.kappa[3])*(gridind>true.kappa[3])
   y2p<-1/(1+exp(-eta2p))*7
   
   Y2p[l,]<-y2p
@@ -1324,7 +1513,9 @@ for(l in 1:n2p){
 
 # Class 2 - Tx #
 for(l in 1:n2t){
-  eta2t<-X2t%*%c(true.beta20,true.beta2)+(trueb2[trt[true.c==2]==1,1])[l]+(trueb2[trt[true.c==2]==1,2])[l]*gridind+(trueb2[trt[true.c==2]==1,3])[l]*(gridind-true.kappa[4])*(gridind>true.kappa[4])
+  eta2t<-X2t%*%c(true.beta20,true.beta2)+(trueb2[trt[true.c==2]==1,1])[l]+
+    (trueb2[trt[true.c==2]==1,2])[l]*gridind+
+    (trueb2[trt[true.c==2]==1,3])[l]*(gridind-true.kappa[4])*(gridind>true.kappa[4])
   y2t<-1/(1+exp(-eta2t))*7
   
   Y2t[l,]<-y2t
@@ -1350,7 +1541,9 @@ Y3t<-matrix(NA,n3t,num)     # Observed subject-level trend in class 3 (tx)
 
 # Class 3 - Placebo #
 for(l in 1:n3p){
-  eta3p<-X3p%*%c(true.beta30,true.beta3)+(trueb3[trt[true.c==3]==0,1])[l]+(trueb3[trt[true.c==3]==0,2])[l]*gridind+(trueb3[trt[true.c==3]==0,3])[l]*(gridind-true.kappa[5])*(gridind>true.kappa[5])
+  eta3p<-X3p%*%c(true.beta30,true.beta3)+(trueb3[trt[true.c==3]==0,1])[l]+
+    (trueb3[trt[true.c==3]==0,2])[l]*gridind+
+    (trueb3[trt[true.c==3]==0,3])[l]*(gridind-true.kappa[5])*(gridind>true.kappa[5])
   y3p<-1/(1+exp(-eta3p))*7
   
   Y3p[l,]<-y3p
@@ -1358,7 +1551,9 @@ for(l in 1:n3p){
 
 # Class 3 - Tx #
 for(l in 1:n3t){
-  eta3t<-X3t%*%c(true.beta30,true.beta3)+(trueb3[trt[true.c==3]==1,1])[l]+(trueb3[trt[true.c==3]==1,2])[l]*gridind+(trueb3[trt[true.c==3]==1,3])[l]*(gridind-true.kappa[6])*(gridind>true.kappa[6])
+  eta3t<-X3t%*%c(true.beta30,true.beta3)+(trueb3[trt[true.c==3]==1,1])[l]+
+    (trueb3[trt[true.c==3]==1,2])[l]*gridind+
+    (trueb3[trt[true.c==3]==1,3])[l]*(gridind-true.kappa[6])*(gridind>true.kappa[6])
   y3t<-1/(1+exp(-eta3t))*7
   
   Y3t[l,]<-y3t
@@ -1424,22 +1619,34 @@ for (j in 1:lastit){
   X2<-cbind(1,tp,txp,tp*txp,spg21,spg22)
   X3<-cbind(1,tp,txp,tp*txp,spg31,spg32)
   
-  etac1pl<-X1[C==1 & txp==0,]%*%beta1+rep(b1[c==1&trt==0],each=num)+rep(b2[c==1&trt==0],each=num)*rep(gridind,nc1pl)+rep(b3[c==1&trt==0],each=num)*spg1[C==1&txp==0]
+  etac1pl<-X1[C==1 & txp==0,]%*%beta1+rep(b1[c==1&trt==0],each=num)+
+    rep(b2[c==1&trt==0],each=num)*rep(gridind,nc1pl)+
+    rep(b3[c==1&trt==0],each=num)*spg1[C==1&txp==0]
   muc1pl<-1/(1+exp(-etac1pl))   # Predicted mean: class 1 placebo
   
-  etac1tx<-X1[C==1 & txp==1,]%*%beta1+rep(b1[c==1&trt==1],each=num)+rep(b2[c==1&trt==1],each=num)*rep(gridind,nc1tx)+rep(b3[c==1&trt==1],each=num)*spg1[C==1&txp==1]
+  etac1tx<-X1[C==1 & txp==1,]%*%beta1+rep(b1[c==1&trt==1],each=num)+
+    rep(b2[c==1&trt==1],each=num)*rep(gridind,nc1tx)+
+    rep(b3[c==1&trt==1],each=num)*spg1[C==1&txp==1]
   muc1tx<-1/(1+exp(-etac1tx))   # Predicted mean: class 1 tx
   
-  etac2pl<-X2[C==2 & txp==0,]%*%beta2+rep(b1[c==2&trt==0],each=num)+rep(b2[c==2&trt==0],each=num)*rep(gridind,nc2pl)+rep(b3[c==2&trt==0],each=num)*spg2[C==2&txp==0]
+  etac2pl<-X2[C==2 & txp==0,]%*%beta2+rep(b1[c==2&trt==0],each=num)+
+    rep(b2[c==2&trt==0],each=num)*rep(gridind,nc2pl)+
+    rep(b3[c==2&trt==0],each=num)*spg2[C==2&txp==0]
   muc2pl<-1/(1+exp(-etac2pl))   # Predicted mean: class 2 placebo
   
-  etac2tx<-X2[C==2 & txp==1,]%*%beta2+rep(b1[c==2&trt==1],each=num)+rep(b2[c==2&trt==1],each=num)*rep(gridind,nc2tx)+rep(b3[c==2&trt==1],each=num)*spg2[C==2&txp==1]
+  etac2tx<-X2[C==2 & txp==1,]%*%beta2+rep(b1[c==2&trt==1],each=num)+
+    rep(b2[c==2&trt==1],each=num)*rep(gridind,nc2tx)+
+    rep(b3[c==2&trt==1],each=num)*spg2[C==2&txp==1]
   muc2tx<-1/(1+exp(-etac2tx))   # Predicted mean: class 2 t
   
-  etac3pl<-X3[C==3 & txp==0,]%*%beta3+rep(b1[c==3&trt==0],each=num)+rep(b2[c==3&trt==0],each=num)*rep(gridind,nc3pl)+rep(b3[c==3&trt==0],each=num)*spg3[C==3&txp==0]
+  etac3pl<-X3[C==3 & txp==0,]%*%beta3+rep(b1[c==3&trt==0],each=num)+
+    rep(b2[c==3&trt==0],each=num)*rep(gridind,nc3pl)+
+    rep(b3[c==3&trt==0],each=num)*spg3[C==3&txp==0]
   muc3pl<-1/(1+exp(-etac3pl))   # Predicted mean: class 3 placebo
   
-  etac3tx<-X3[C==3 & txp==1,]%*%beta3+rep(b1[c==3&trt==1],each=num)+rep(b2[c==3&trt==1],each=num)*rep(gridind,nc3tx)+rep(b3[c==3&trt==1],each=num)*spg3[C==3&txp==1]
+  etac3tx<-X3[C==3 & txp==1,]%*%beta3+rep(b1[c==3&trt==1],each=num)+
+    rep(b2[c==3&trt==1],each=num)*rep(gridind,nc3tx)+
+    rep(b3[c==3&trt==1],each=num)*spg3[C==3&txp==1]
   muc3tx<-1/(1+exp(-etac3tx))   # Predicted mean: class 3 tx
   
   
@@ -1461,7 +1668,7 @@ for (j in 1:lastit){
   YPOSc2diff[j,]<-YPOSc2tx[j,]-YPOSc2pl[j,]
   YPOSc3diff[j,]<-YPOSc3tx[j,]-YPOSc3pl[j,]
   
-  if (j %% 100==0) print(j)
+  # if (j %% 100==0) print(j)
 }
 
 
@@ -1510,12 +1717,15 @@ ggplot(dplotc1,aes(x=grid,y=mmu1,col=gp,shape=gp))+
   geom_line(linetype=c(rep("solid",num),rep("dashed",num)),size=1.5)+
   geom_point(size=3.5)+
   geom_ribbon(aes(ymin = lb1, ymax = ub1,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,outline.type = "both",alpha=0.4,show.legend = F)+
-  geom_vline(aes(xintercept=mkap[1]+5,col="Estimated Changepoint (CP)"),linetype="dashed",size=1.5,show.legend = F)+
+  geom_vline(aes(xintercept=mkap[1]+5,col="Estimated Changepoint (CP)"),
+             linetype="dashed",size=1.5,show.legend = F)+
   geom_vline(aes(xintercept=qkap[1,1]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   geom_vline(aes(xintercept=qkap[2,1]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   scale_x_continuous(breaks = 1:12,limits=c(1,12))+
   scale_y_continuous(breaks = 0:7,limits=c(0,7))+
-  scale_color_manual(breaks = c("True Trend","Posterior Trend","95% Credible Interval","Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
+  scale_color_manual(breaks = c("True Trend","Posterior Trend",
+                                "95% Credible Interval",
+                                "Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
                      values = c("red2","red4","grey36","seagreen","seagreen"))+
   scale_shape_manual(breaks = c("True Trend","Posterior Trend"), 
                      values = c(2,NA))+
@@ -1550,12 +1760,15 @@ ggplot(dplotc1,aes(x=grid,y=mmu2,col=gp,shape=gp))+
   geom_line(linetype=c(rep("solid",num),rep("dashed",num)),size=1.5)+
   geom_point(size=3.5)+
   geom_ribbon(aes(ymin = lb2, ymax = ub2,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,outline.type = "both",alpha=0.3,show.legend = F)+
-  geom_vline(aes(xintercept=mkap[2]+5,col="Estimated Changepoint (CP)"),linetype="dashed",size=1,show.legend = F)+
+  geom_vline(aes(xintercept=mkap[2]+5,col="Estimated Changepoint (CP)"),
+             linetype="dashed",size=1,show.legend = F)+
   geom_vline(aes(xintercept=qkap[1,2]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   geom_vline(aes(xintercept=qkap[2,2]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   scale_x_continuous(breaks = 1:12,limits=c(1,12))+
   scale_y_continuous(breaks = 0:7,limits=c(0,7))+
-  scale_color_manual(breaks = c("True Trend","Posterior Trend","95% Credible Interval","Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
+  scale_color_manual(breaks = c("True Trend","Posterior Trend",
+                                "95% Credible Interval",
+                                "Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
                      values = c("#0072B2","darkblue","grey20","seagreen","seagreen"))+
   scale_shape_manual(breaks = c("True Trend","Posterior Trend"), 
                      values = c(2,NA))+
@@ -1599,12 +1812,15 @@ ggplot(dplotc2,aes(x=grid,y=mmu1,col=gp,shape=gp))+
   geom_line(linetype=c(rep("solid",num),rep("dashed",num)),size=1.5)+
   geom_point(size=3.5)+
   geom_ribbon(aes(ymin = lb1, ymax = ub1,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,outline.type = "both",alpha=0.3,show.legend = F)+
-  geom_vline(aes(xintercept=mkap[3]+5,col="Estimated Changepoint (CP)"),linetype="dashed",size=1.5,show.legend = F)+
+  geom_vline(aes(xintercept=mkap[3]+5,col="Estimated Changepoint (CP)"),
+             linetype="dashed",size=1.5,show.legend = F)+
   geom_vline(aes(xintercept=qkap[1,3]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   geom_vline(aes(xintercept=qkap[2,3]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   scale_x_continuous(breaks = 1:12,limits=c(1,12))+
   scale_y_continuous(breaks = 0:7,limits=c(0,7))+
-  scale_color_manual(breaks = c("True Trend","Posterior Trend","95% Credible Interval","Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
+  scale_color_manual(breaks = c("True Trend","Posterior Trend",
+                                "95% Credible Interval",
+                                "Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
                      values = c("red2","red4","grey36","seagreen","seagreen"))+
   scale_shape_manual(breaks = c("True Trend","Posterior Trend"), 
                      values = c(2,NA))+
@@ -1636,12 +1852,15 @@ ggplot(dplotc2,aes(x=grid,y=mmu2,col=gp,shape=gp))+
   geom_line(linetype=c(rep("solid",num),rep("dashed",num)),size=1.5)+
   geom_point(size=3.5)+
   geom_ribbon(aes(ymin = lb2, ymax = ub2,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,outline.type = "both",alpha=0.3,show.legend = F)+
-  geom_vline(aes(xintercept=mkap[4]+5,col="Estimated Changepoint (CP)"),linetype="dashed",size=1,show.legend = F)+
+  geom_vline(aes(xintercept=mkap[4]+5,col="Estimated Changepoint (CP)"),
+             linetype="dashed",size=1,show.legend = F)+
   geom_vline(aes(xintercept=qkap[1,4]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   geom_vline(aes(xintercept=qkap[2,4]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   scale_x_continuous(breaks = 1:12,limits=c(1,12))+
   scale_y_continuous(breaks = 0:7,limits=c(0,7))+
-  scale_color_manual(breaks = c("True Trend","Posterior Trend","95% Credible Interval","Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
+  scale_color_manual(breaks = c("True Trend","Posterior Trend",
+                                "95% Credible Interval",
+                                "Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
                      values = c("#0072B2","darkblue","grey20","seagreen","seagreen"))+
   scale_shape_manual(breaks = c("True Trend","Posterior Trend"), 
                      values = c(2,NA))+
@@ -1687,12 +1906,15 @@ ggplot(dplotc3,aes(x=grid,y=mmu1,col=gp,shape=gp))+
   geom_line(linetype=c(rep("solid",num),rep("dashed",num)),size=1.5)+
   geom_point(size=3.5)+
   geom_ribbon(aes(ymin = lb1, ymax = ub1,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,outline.type = "both",alpha=0.3,show.legend = F)+
-  geom_vline(aes(xintercept=mkap[5]+5,col="Estimated Changepoint (CP)"),linetype="dashed",size=1.5,show.legend = F)+
+  geom_vline(aes(xintercept=mkap[5]+5,col="Estimated Changepoint (CP)"),
+             linetype="dashed",size=1.5,show.legend = F)+
   geom_vline(aes(xintercept=qkap[1,5]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   geom_vline(aes(xintercept=qkap[2,5]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   scale_x_continuous(breaks = 1:12,limits=c(1,12))+
   scale_y_continuous(breaks = 0:7,limits=c(0,7))+
-  scale_color_manual(breaks = c("True Trend","Posterior Trend","95% Credible Interval","Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
+  scale_color_manual(breaks = c("True Trend","Posterior Trend",
+                                "95% Credible Interval",
+                                "Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
                      values = c("red2","red4","grey36","seagreen","seagreen"))+
   scale_shape_manual(breaks = c("True Trend","Posterior Trend"), 
                      values = c(2,NA))+
@@ -1724,12 +1946,15 @@ ggplot(dplotc3,aes(x=grid,y=mmu2,col=gp,shape=gp))+
   geom_line(linetype=c(rep("solid",num),rep("dashed",num)),size=1.5)+
   geom_point(size=3.5)+
   geom_ribbon(aes(ymin = lb2, ymax = ub2,col="95% Credible Interval",fill="95% Credible Interval"),linetype=1,outline.type = "both",alpha=0.3,show.legend = F)+
-  geom_vline(aes(xintercept=mkap[6]+5,col="Estimated Changepoint (CP)"),linetype="dashed",size=1,show.legend = F)+
+  geom_vline(aes(xintercept=mkap[6]+5,col="Estimated Changepoint (CP)"),
+             linetype="dashed",size=1,show.legend = F)+
   geom_vline(aes(xintercept=qkap[1,6]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   geom_vline(aes(xintercept=qkap[2,6]+5,col="95% Credible Interval (CP)"),linetype="dotted",size=1.5,show.legend = F)+
   scale_x_continuous(breaks = 1:12,limits=c(1,12))+
   scale_y_continuous(breaks = 0:7,limits=c(0,7))+
-  scale_color_manual(breaks = c("True Trend","Posterior Trend","95% Credible Interval","Estimated Changepoint (CP)","95% Credible Interval (CP)"), 
+  scale_color_manual(breaks = c("True Trend","Posterior Trend",
+                                "95% Credible Interval","Estimated Changepoint (CP)",
+                                "95% Credible Interval (CP)"), 
                      values = c("#0072B2","darkblue","grey20","seagreen","seagreen"))+
   scale_shape_manual(breaks = c("True Trend","Posterior Trend"), 
                      values = c(2,NA))+
@@ -1756,21 +1981,20 @@ ggplot(dplotc3,aes(x=grid,y=mmu2,col=gp,shape=gp))+
            label = "CP:~hat(kappa)[12]==7.81",parse = TRUE,size=6)+
   annotate(geom="text", x=10.6, y=0, label="95%CrI:[7.32,8.27]",
            color="black",size=6)
+```
 
 
+### Triangle Plot
 
+```{r}
 #------------------------------------------------------------------------------#
 # Triangle plot #
 #---------------#
 library(ggtern)
-
-
 denom<-P1s+P2s+P3s
 p1<-apply(P1s/denom,2,mean)   # Class 1 n=106 with posterior prob > .95
 p2<-apply(P2s/denom,2,mean)   # Class 2 n=69 wiht posterior prob > .95
 p3<-apply(P3s/denom,2,mean)   # Class 3 n=41 with posterior prob > .95
-
-
 
 dtriax  <- data.frame(
   Class.1 =p1,
@@ -1787,8 +2011,6 @@ dtriax2  <- data.frame(
 )
 
 dtriax2$colgp<-factor(dtriax2$colgp,labels=c("Class 1", "Class 2", "Class 3"))
-
-
 
 ggtern(data=dtriax2,aes(Class.3,Class.1,Class.2,col=colgp,fill=colgp,shape=colgp)) + 
   geom_mask() +
@@ -1808,3 +2030,7 @@ ggtern(data=dtriax2,aes(Class.3,Class.1,Class.2,col=colgp,fill=colgp,shape=colgp
         legend.position = c(0.15,0.80),legend.text=element_text(size=20),
         axis.text=element_text(size=20),
         axis.title=element_text(size=16))
+```
+
+
+
